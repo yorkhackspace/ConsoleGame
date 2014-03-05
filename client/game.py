@@ -12,25 +12,22 @@ from NokiaLCD import NokiaLCD
 import gaugette.rotary_encoder as rotary
 import Keypad_BBB
 from collections import OrderedDict
-import commands
 import json
 import time
 
-#Who am I?
-ipaddress = commands.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
+from config import Config
 
-#Config
-f=open('game-' + ipaddress +'.config')
-config=json.loads(f.read())
-f.close()
+# Load up the default config
+config = Config()
+
 
 #Vars
-lcd={}
+lcd = {}
 controlids = [control['id'] for control in config['interface']['controls']]
 controlids.sort()
 controldefs = {}
 roundconfig = {}
-bar = []
+bargraphs = []
 keypad = None
 hasregistered = False
 timeoutstarted = 0.0
@@ -39,7 +36,7 @@ timeoutdisplayblocks = 0
 for control in config['interface']['controls']:
     ctrlid = control['id']
     controldefs[ctrlid] = control
-    
+
 sortedlist = [ctrlid for ctrlid in config['local']['controls']]
 sortedlist.sort()
 for ctrlid in sortedlist:
@@ -70,7 +67,7 @@ for ctrlid in sortedlist:
                 pin = pins['BAR_' + str(barnum+1)]
                 GPIO.setup(pin, GPIO.OUT)
                 GPIO.output(pin, GPIO.HIGH)
-                bar.append(pin)
+                bargraphs.append(pin)
             ADC.setup(pins['POT'])
         elif hardwaretype == 'combo7SegColourRotary': #I2C 7Seg, button, rotary, RGB
             #segment defined at module scope
@@ -173,9 +170,9 @@ def barGraph(digit):
     """Display Bar graph"""
     for i in range(10):
         if digit > i:
-            GPIO.output(bar[i], GPIO.HIGH)
+            GPIO.output(bargraphs[i], GPIO.HIGH)
         else:
-            GPIO.output(bar[i], GPIO.LOW)
+            GPIO.output(bargraphs[i], GPIO.LOW)
 
 #Display a timer bar on the bottom row of the instructions display
 def displayTimer():
