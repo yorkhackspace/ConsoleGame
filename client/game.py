@@ -14,28 +14,12 @@ import Keypad_BBB
 from collections import OrderedDict
 import json
 import time
+from time import sleep
 
 from config import Config
+import mqtt
+import Queue
 
-# Load up the default config
-config = Config()
-
-
-#Vars
-lcd = {}
-controlids = [control['id'] for control in config['interface']['controls']]
-controlids.sort()
-controldefs = {}
-roundconfig = {}
-bargraphs = []
-keypad = None
-hasregistered = False
-timeoutstarted = 0.0
-timeoutdisplayblocks = 0
-
-for control in config['interface']['controls']:
-    ctrlid = control['id']
-    controldefs[ctrlid] = control
 
 sortedlist = [ctrlid for ctrlid in config['local']['controls']]
 sortedlist.sort()
@@ -53,7 +37,7 @@ for ctrlid in sortedlist:
         newlcd = NokiaLCD(pin_SCE=dispdef['pin'])
         lcd[ctrlid]=newlcd
         print("Control " + ctrlid + " is nokia on pin " + dispdef['pin'])
-    hardwaretype = config['local']['controls'][ctrlid]['hardware'] 
+    hardwaretype = config['local']['controls'][ctrlid]['hardware']
     if hardwaretype != 'instructions':
         pins = config['local']['controls'][ctrlid]['pins']
         if hardwaretype == 'phonestylemenu': # 2 buttons, RGB LED
@@ -87,7 +71,7 @@ for ctrlid in sortedlist:
             GPIO.output(pins['LED'], GPIO.LOW)
         elif hardwaretype == 'potentiometer': #slide or rotary 10k pot
             ADC.setup(pins['POT'])
-        elif hardwaretype == 'illuminatedtoggle': #one switch, one LED            
+        elif hardwaretype == 'illuminatedtoggle': #one switch, one LED
             GPIO.setup(pins['SW'], GPIO.IN, GPIO.PUD_DOWN)
             GPIO.setup(pins['LED'], GPIO.OUT)
             GPIO.output(pins['LED'], GPIO.LOW)
@@ -95,12 +79,9 @@ for ctrlid in sortedlist:
             for i in range(1,5):
                 GPIO.setup(pins['BTN_' + str(i)], GPIO.IN, GPIO.PUD_DOWN)
         elif hardwaretype == 'keypad': #four rows, four cols
-            keypad = Keypad_BBB.keypad(pins['ROW_1'], pins['ROW_2'], pins['ROW_3'], pins['ROW_4'], 
+            keypad = Keypad_BBB.keypad(pins['ROW_1'], pins['ROW_2'], pins['ROW_3'], pins['ROW_4'],
                                        pins['COL_1'], pins['COL_2'], pins['COL_3'], pins['COL_4'])
-            
-#MQTT client
-client = mosquitto.Mosquitto("Game-" + ipaddress) #client ID
-server = config['local']['server']
+
 
 #Adafruit I2C 7-segment
 segment = SevenSegment(address=0x70)
@@ -152,7 +133,7 @@ def displayValueLine(valuestr, ctrlid):
         combinedstr = (" " * leftpad) + valuestr + (" " * (ctrldef['width'] - len(valuestr) - leftpad))
         lcd[ctrlid].setCursor(0, ctrldef['height']-3)
         lcd[ctrlid].message(combinedstr)
-    
+
 #Print to the 7-seg
 def displayDigits(digits):
     """Print to the 7-seg"""
@@ -164,7 +145,7 @@ def displayDigits(digits):
         else:
             idx = i+1
         segment.writeDigitRaw(idx,lookup7segchar[digit])
-        
+
 #Bar graph
 def barGraph(digit):
     """Display Bar graph"""
@@ -194,7 +175,7 @@ def displayTimer():
             lcd["0"].setCursor(blockstodisplay, 3)
             lcd["0"].message((timeoutdisplayblocks - blockstodisplay ) * ' ')
         timeoutdisplayblocks = blockstodisplay
-        
+
 #MQTT message arrived
 def on_message(mosq, obj, msg):
     """Process incoming MQTT message"""
@@ -231,7 +212,7 @@ def on_message(mosq, obj, msg):
                 if not hasregistered:
                     hasregistered = True
                     client.publish("server/register", json.dumps(config['interface']))
-                    
+
 #Process control value assignment
 def processControlValueAssignment(value, ctrlid, override=False):
     """Process control value assignment"""
@@ -336,7 +317,7 @@ def processControlValueAssignment(value, ctrlid, override=False):
             #no need for cases
             displayValueLine(value)
         ctrldef['value'] = value
-            
+
 #Process an incoming config for a round
 def processRoundConfig(roundconfigstring):
     """Process an incoming config for a round"""
@@ -372,7 +353,7 @@ def translateCalibratedValue(rawvalue, calibrationdict):
     for value in sortedlist:
         if rawvalue < calibrationdict[value]:
             return value
-    
+
 #Poll controls, interpret into values, recognise changes, inform server
 def pollControls():
     """Poll controls, interpret into values, recognise changes, inform server"""
@@ -517,26 +498,49 @@ def pollControls():
                     client.publish("clients/" + ipaddress + "/" + ctrlid + "/value", value)
                     ctrldef['value'] = value
                 ctrldef['state'] = state
-                        
-                    
+
+
 #Setup displays
 displayDigits('    ')
 barGraph(0)
 
-#Setup MQTT
-client.on_message = on_message
-client.connect(server)
-subsbase = "clients/" + ipaddress + "/"
-client.subscribe(subsbase + "configure")
-client.subscribe(subsbase + "instructions")
-client.subscribe("server/ready")
 
-for controlid in [x['id'] for x in config['interface']['controls']]:
-    client.subscribe(subsbase + str(controlid) + '/name')
-    client.subscribe(subsbase + str(controlid) + '/enabled')
-    
 #Main loop
 while(client.loop() == 0):
     pollControls()
     displayTimer()
-    
+
+
+if __name__ == "__main__":
+    config = Config()
+
+    # Start up the mqtt thread
+    mqqt_in_q = Queue.Queue()
+    mqqt_out_q = Queue.Queue()
+    mqtt_server = mqtt.Server(mqqt_in_q, mqqt_out_q, config)
+    mqtt_server.daemon = True
+    mqtt_server.start()
+
+    # Start up the Display Threads
+    # This will be one thread that runs all the displays
+    display_in_q = Queue.Queue()
+    display_server = displays.Server(display_in_q)
+    display_server.daemon = True
+    display_server.start()
+
+    # Start the input Threads
+    # This will be a thread for each input device
+    input_out_q = Queue.Queue()
+    # Threads will be started in the module
+    input_server = inputs.Server(input_out_q)
+
+    # XXX There should be a nice way to stop this loop
+    running = True
+    while running:
+        if input_out_q.unfinished_tasks:
+            process_inputs()
+        elif mqtt_out_q.unfinished_tasks:
+            process_mqtt()
+        else:
+            sleep(0.01)
+
