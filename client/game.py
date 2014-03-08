@@ -18,7 +18,9 @@ from time import sleep
 
 from config import Config
 import mqtt
+import displays
 import Queue
+import logging as log
 
 
 sortedlist = [ctrlid for ctrlid in config['local']['controls']]
@@ -462,6 +464,17 @@ def pollControls():
                     ctrldef['value'] = value
                 ctrldef['state'] = state
 
+def process_mqtt(msg):
+    """Hand off the mqtt message to the right component"""
+    if msg[0] == 'configure':
+        process_configure(msg[1])
+    elif msg[0] == 'display':
+        display_in_q.put(msg)
+    else:
+        process_control(msg[1])
+
+
+
 
 #Setup displays
 displayDigits('    ')
@@ -469,9 +482,9 @@ barGraph(0)
 
 
 #Main loop
-while(client.loop() == 0):
-    pollControls()
-    displayTimer()
+#while(client.loop() == 0):
+#    pollControls()
+#    displayTimer()
 
 
 if __name__ == "__main__":
@@ -503,7 +516,9 @@ if __name__ == "__main__":
         if input_out_q.unfinished_tasks:
             process_inputs()
         elif mqtt_out_q.unfinished_tasks:
-            process_mqtt()
+            process_mqtt(mqtt_out_q.get())
+        elif not running:
+            log.info("Stopping the main loop, goodbye")
         else:
             sleep(0.01)
 
