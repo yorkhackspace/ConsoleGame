@@ -176,43 +176,6 @@ def displayTimer():
             lcd["0"].message((timeoutdisplayblocks - blockstodisplay ) * ' ')
         timeoutdisplayblocks = blockstodisplay
 
-#MQTT message arrived
-def on_message(mosq, obj, msg):
-    """Process incoming MQTT message"""
-    print(msg.topic + " - " + str(msg.payload))
-    nodes = msg.topic.split('/')
-    global timeoutstarted
-    global timeoutdisplayblocks
-    if nodes[0]=='clients':
-        if nodes[2]=='configure':
-            processRoundConfig(str(msg.payload))
-            timeoutstarted = 0.0
-            timeoutdisplayblocks = 0
-        elif nodes[2] == 'instructions':
-            display(str(msg.payload), 20, "0")
-            #start timer?
-            if 'timeout' in roundconfig and roundconfig['timeout'] > 0.0:
-                timeoutdisplayblocks = 0
-                timeoutstarted = time.time()
-        elif nodes[2] in controlids:
-            ctrlid = nodes[2]
-            if nodes[3] == 'enabled':
-                roundconfig['controls'][ctrlid]['enabled'] = False
-                #switch it off?
-                display(" ", config['local']['controls'][ctrlid]['display'], ctrlid)
-            elif nodes[3] == 'name':
-                display(str(msg.payload), config['local']['controls'][ctrlid]['display'], ctrlid)
-    elif nodes[0] == 'server':
-        if nodes[1] == 'ready':
-            mess = str(msg.payload)
-            if mess == 'started':
-                client.publish("server/register", json.dumps(config['interface']))
-            elif mess == 'ready':
-                global hasregistered
-                if not hasregistered:
-                    hasregistered = True
-                    client.publish("server/register", json.dumps(config['interface']))
-
 #Process control value assignment
 def processControlValueAssignment(value, ctrlid, override=False):
     """Process control value assignment"""
