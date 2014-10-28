@@ -125,7 +125,7 @@ client.on_message = on_message
 client.on_connect = on_connect
 client.connect(server)
 
-client.start_loop()
+client.loop_start()
 
 
 def main_loop():
