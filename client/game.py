@@ -106,10 +106,6 @@ def processRoundConfig(roundconfigstring):
     control_manager.processRoundConfig(config, roundconfig, controlids)
 
 
-def controller_ids():
-    return [x['id'] for x in config['interface']['controls']]
-
-
 def on_connect(client, userdata, flags, rc):
     logging.info("Connected to console with result {}".format(rc))
     # client.subscribe("foo")
@@ -118,7 +114,7 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(subsbase + "instructions")
     client.subscribe(subsbase + "timeout")
     client.subscribe("server/ready")
-    for controlid in controller_ids():
+    for controlid in controlids:
         client.subscribe(subsbase + str(controlid) + '/name')
         client.subscribe(subsbase + str(controlid) + '/enabled')
 
