@@ -1,52 +1,43 @@
 # SpaceHack! Game client main module
-#York Hackspace January 2014
-#This runs on a Beaglebone Black
+# York Hackspace January 2014
+# This runs on a Beaglebone Black
 
-#import sys
 import paho.mqtt.client as mqtt
-#import Adafruit_BBIO.GPIO as GPIO
-#import Adafruit_BBIO.PWM as PWM
-#import Adafruit_BBIO.ADC as ADC
-
-#from Adafruit_CharLCD import Adafruit_CharLCD
-#from NokiaLCD import NokiaLCD
-#import Keypad_BBB
-#from collections import OrderedDict
 import commands
 import json
 import time
 import os
 import logging
 
-#import game libraries
+# Import game libraries
 from gamelibs import config_manager
 from gamelibs import lcd_manager
 from controls import control_manager
 
-#Vars
+# Global Variables
 roundconfig = {}
 keypad = None
 hasregistered = False
 timeoutstarted = 0.0
 resetBlocks = False
 
-#Who am I? Get my ip address
+# Who am I? Get my ip address
 ipaddress = commands.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
 
-#configuration. Load the config and get various dictionaries and arrays back
-configFileName = 'game-' + ipaddress +'.config'
+# configuration. Load the config and get various dictionaries and arrays back
+configFileName = 'game-' + ipaddress + '.config'
 config, controlids, controldefs, sortedlist = config_manager.loadConfig(configFileName)
 
-#initialise all of the LCDs and return a list of LCD objects
+# Initialise all of the LCDs and return a list of LCD objects
 myLcdManager = lcd_manager.LcdManager(sortedlist, config)
 
-#initialise all controls
+# Initialise all controls
 control_manager.initialiseControls(config, sortedlist, myLcdManager)
 
 print config['local']
 server = config['local']['server']
 
-#MQTT message arrived
+# MQTT message arrived
 def on_message(client, userdata, msg):
     global resetBlocks
     """Process incoming MQTT message"""
@@ -55,8 +46,8 @@ def on_message(client, userdata, msg):
     global timeoutstarted
     global timeoutdisplayblocks
     global myLcdManager
-    if nodes[0]=='clients':
-        if nodes[2]=='configure':
+    if nodes[0] == 'clients':
+        if nodes[2] == 'configure':
             if str(msg.payload) == 'reboot':
                 os.system('reboot')
             else:
@@ -66,7 +57,7 @@ def on_message(client, userdata, msg):
                 timeoutdisplayblocks = 0
         elif nodes[2] == 'instructions':
             myLcdManager.display(str(msg.payload), 20, "0")
-            #start timer?
+            # Start timer?
             if 'timeout' in roundconfig and roundconfig['timeout'] > 0.0:
                 resetBlocks = True
                 timeoutstarted = time.time()
@@ -77,11 +68,11 @@ def on_message(client, userdata, msg):
             if nodes[3] == 'enabled':
                 if str(msg.payload) == "0":
                     roundconfig['controls'][ctrlid]['enabled'] = False
-                    #switch it off
+                    # Switch it off
                     myLcdManager.display(" ", config['local']['controls'][ctrlid]['display']['width'], ctrlid)
                 else:
                     roundconfig['controls'][ctrlid]['enabled'] = True
-                    #switch it on
+                    # Switch it on
                     myLcdManager.display(roundconfig['controls'][ctrlid]['name'], config['local']['controls'][ctrlid]['display']['width'], ctrlid)
             elif nodes[3] == 'name':
                 if str(msg.payload) == '':
@@ -103,7 +94,7 @@ def on_message(client, userdata, msg):
                 os.system('poweroff')
 
 
-#Process an incoming config for a round
+# Process an incoming config for a round
 def processRoundConfig(roundconfigstring):
     """Process an incoming config for a round"""
     control_manager.initialiseControls(config, sortedlist, myLcdManager)
