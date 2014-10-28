@@ -8,6 +8,7 @@ import json
 import time
 import os
 import logging
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 # Import game libraries
 from gamelibs import config_manager
@@ -34,14 +35,14 @@ myLcdManager = lcd_manager.LcdManager(sortedlist, config)
 # Initialise all controls
 control_manager.initialiseControls(config, sortedlist, myLcdManager)
 
-print config['local']
+logging.info("{0}".format(config['local']))
 server = config['local']['server']
 
 # MQTT message arrived
 def on_message(client, userdata, msg):
     global resetBlocks
     """Process incoming MQTT message"""
-    print("{0} - {1}".format(msg.topic, msg.payload))
+    logging.info("Received message: {0} - {1}".format(msg.topic, msg.payload))
     nodes = msg.topic.split('/')
     global timeoutstarted
     global timeoutdisplayblocks
