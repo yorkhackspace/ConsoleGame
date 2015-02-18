@@ -28,16 +28,21 @@ ipaddress = commands.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
 
 # configuration. Load the config and get various dictionaries and arrays back
 config_file_name = 'game-%{}.config'.format(ipaddress)
-config, controlids, controldefs, sortedlist = config_manager.loadConfig(config_file_name)
 
-#initialise all of the LCDs and return a list of LCD objects
-myLcdManager = lcd_manager.LcdManager(sortedlist, config)
+logging.info("Loading config from %{}".format(config_file_name))
+config_file = open(config_file_name)
+config = json.loads(config_file.read())
+config_file.close()
+controlids = [control['id'] for control in config['controls']]
 
-#initialise all controls
+# initialise all of the LCDs and return a list of LCD objects
+my_lcd_manager = lcd_manager.LcdManager(config)
+
+# initialise all controls
 control_manager.initialiseControls(config, sortedlist, myLcdManager)
 
-logging.info(config['local'])
-server = config['local']['server']
+logging.info(config['general'])
+server = config['general']['server']
 
 def on_message(client, userdata, msg):
     """Process incoming MQTT message"""
@@ -46,25 +51,25 @@ def on_message(client, userdata, msg):
     nodes = msg.topic.split('/')
     global timeoutstarted
     global timeoutdisplayblocks
-    global myLcdManager
+    global my_lcd_manager
     if nodes[0] == 'clients':
         if nodes[2] == 'configure':
             if str(msg.payload) == 'reboot':
                 os.system('reboot')
             else:
-                myLcdManager = lcd_manager.LcdManager(sortedlist, config)
+                my_lcd_manager = lcd_manager.LcdManager(config)
                 process_round_config(str(msg.payload))
                 timeoutstarted = 0.0
                 timeoutdisplayblocks = 0
         elif nodes[2] == 'instructions':
-            myLcdManager.display(str(msg.payload), 20, "0")
+            my_lcd_manager.display(str(msg.payload), 20, "0")
             # start timer?
             if 'timeout' in roundconfig and roundconfig['timeout'] > 0.0:
                 reset_blocks = True
                 timeoutstarted = time.time()
         elif nodes[2] == 'timeout':
             roundconfig['timeout'] = float(str(msg.payload))
-        elif nodes[2] in controlids:
+        elif nodes[2] in config[controls]:
             ctrlid = nodes[2]
             if nodes[3] == 'enabled':
                 if str(msg.payload) == "0":
