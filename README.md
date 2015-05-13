@@ -3,8 +3,11 @@ WARNING
 
 This has all moved!
 Spacehack is now split into two new repos.
+
 The client side code is here: https://github.com/yorkhackspace/SpacehackClient
+
 The server side code is here: https://github.com/yorkhackspace/SpacehackServer
+
 Enjoy!
 
 SpaceHack
